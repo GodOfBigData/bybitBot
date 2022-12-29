@@ -1,0 +1,1 @@
+MESSAGE_LOG = 'created order symbol - {}, side - {}, type order - {}, price - {}, number of contracts - {}.'
