@@ -1,10 +1,14 @@
 from bots.bots import *
 from bots.config import key_coinMarket
 from time import sleep
-import threading
+import multiprocessing
 
 LONG = "LONG"
 SHORT = "SHORT"
+procLong = None
+procShort = None
+LIMITS_INFO = [(2, 100), (4, 300)]
+
 
 
 def check_intersection(bot_analyst, last_ma, last_ema, need_dif):
@@ -35,47 +39,56 @@ def checkGlobalMetrics(direction):
 
 
 def runFlatTrading(api_key, api_secret, symbol, proxy):
-    botTrader = BotTrader(api_key, api_secret, symbol, proxy) # create trader bot
+    botTrader = FlatBotTrader(api_key, api_secret, symbol, proxy, 60, LIMITS_INFO) # create trader bot
+    procLong.start()
+    procShort.start()
 
 
 def runIntersectionTrading(api_key, api_secret, symbol, proxy, direction):
-    botTrader = BotTrader(api_key, api_secret, symbol, proxy) # create trader bot
+    botTrader = FlatBotTrader(api_key, api_secret, symbol, proxy, 60, LIMITS_INFO) # create trader bot
+    if direction == LONG:
+        procLong.start()
+    else:
+        procShort.start()
+
+def stopTrading():
+    procLong.terminate()
+    procShort.terminate()
+
 
 
 def runIntersectionStrategy(api_key, api_secret, proxy, symbol, interval):
-    limits_info = [(2, 100), (4, 300)]
-    botTrader = FlatBotTrader(api_key, api_secret, symbol, proxy, 60, limits_info) # create trader bot
-    threadLong = threading.Thread(target=botTrader.work_long)
-    threadShort = threading.Thread(target=botTrader.work_short)
-    threadLong.start()
-    threadShort.start()
-
-    # bot_analyst = botAnalyst(api_key, api_secret, symbol, interval, proxy) # create market analyst bot 
-    # ma, ema = bot_analyst.getCurrentMaEma() # take current values
-    # direction = None
-    # solution_trade = False
-    # flat_trading_is_runing = False
-    # while True:
-    #     direction = check_intersection(bot_analyst, ma, ema, 40)
-    #     if direction == LONG:
-    #         solution_trade = checkGlobalMetrics(LONG)
-    #     if direction == SHORT:
-    #         solution_trade = checkGlobalMetrics(SHORT)
-    #     if solution_trade == True:
-    #         runIntersectionTrading(api_key, api_secret, symbol, proxy, direction)
-    #         solution_trade = False
-    #         direction = None
-    #         flat_trading_is_runing = False
-    #     sleep(1)
-    #     if flat_trading_is_runing is False:
-    #         flat_trading_is_runing = True
-    #         """
-    #         run thread trading
-    #         """
-    #         runFlatTrading(api_key, api_secret, symbol, proxy)
+    procLong = multiprocessing.Process(target=botTrader.work_long)
+    procShort = multiprocessing.Process(target=botTrader.work_short)
+    bot_analyst = botAnalyst(api_key, api_secret, symbol, interval, proxy) # create market analyst bot 
+    ma, ema = bot_analyst.getCurrentMaEma() # take current values
+    direction = None
+    solution_trade = False
+    flat_trading_is_runing = False
+    while True:
+        direction = check_intersection(bot_analyst, ma, ema, 40)
+        if direction == LONG:
+            solution_trade = checkGlobalMetrics(LONG)
+        if direction == SHORT:
+            solution_trade = checkGlobalMetrics(SHORT)
+        if solution_trade == True:
+            stopTrading()
+            runIntersectionTrading(api_key, api_secret, symbol, proxy, direction)
+            solution_trade = False
+            direction = None
+            flat_trading_is_runing = False
+        sleep(1)
+        if flat_trading_is_runing is False:
+            flat_trading_is_runing = True
+            """
+            run thread trading
+            """
+            stopTrading()
+            runFlatTrading(api_key, api_secret, symbol, proxy)
     
 
 
+    # sleep(30)
 
 # eth_dominance': 17.334679350939,
 #  'eth_dominance_24h_percentage_change': 0.176144010939,

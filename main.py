@@ -1,4 +1,4 @@
-from strategies.intersectionMovingAverages import runIntersectionStrategy
+from strategies.flatStrategy import runFlatStrategy
 from db.dbFunctions import getUsersInfo
 
 
@@ -7,5 +7,4 @@ if __name__ == "__main__":
     api_key = userInfo[1]
     api_secret = userInfo[2]
     proxy = userInfo[3]
-    runIntersectionStrategy(api_key, api_secret, proxy, "BTCUSDT", 60)
-
+    runFlatStrategy(api_key, api_secret, proxy, "BTCUSDT", 60)

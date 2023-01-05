@@ -16,19 +16,27 @@ from time import sleep
 from pprint import pprint
 import time
 
-log_1 = logging.getLogger('bots_debug')
-log_2 = logging.getLogger('bots_error')
+log_debug = logging.getLogger('bots_debug')
+log_info = logging.getLogger('bots_info')
+log_error = logging.getLogger('bots_error')
 
 file_handler_debug = logging.FileHandler(filename='bots.log')
 file_handler_debug.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%d-%m-%Y %H:%M'))
 file_handler_debug.setLevel(logging.DEBUG)
-log_1.addHandler(file_handler_debug)
-log_1.setLevel(logging.DEBUG)
+log_debug.addHandler(file_handler_debug)
+log_debug.setLevel(logging.DEBUG)
+
+file_handler_info = logging.FileHandler(filename='bots.log')
+file_handler_info.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%d-%m-%Y %H:%M'))
+file_handler_info.setLevel(logging.INFO)
+log_info.addHandler(file_handler_info)
+log_info.setLevel(logging.INFO)
 
 file_handler_error = logging.FileHandler(filename='bots.log')
+file_handler_error.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%d-%m-%Y %H:%M'))
 file_handler_error.setLevel(logging.ERROR)
-log_2.addHandler(file_handler_error)
-log_2.setLevel(logging.ERROR)
+log_error.addHandler(file_handler_error)
+log_error.setLevel(logging.ERROR)
 
 
 class BotBybit:
@@ -156,12 +164,12 @@ class BotTrader(BotBybit):
         :return: None
         """
         try:
-            log_1.debug(
+            log_info.info(
                 msg=MESSAGE_LOG.format(kwargs['symbol'], kwargs['side'], kwargs['order_type'],
                                        kwargs['price'],
                                        kwargs['qty']))
         except Exception as exc:
-            log_2.error(exc)
+            log_error.error(exc)
 
     def get_params(self):
         """
@@ -175,11 +183,13 @@ class BotTrader(BotBybit):
         data = {"api_key": self.api_key, "symbol": self.symbol, "timestamp": self.get_timestamp(proxy=self.proxy)}
         try:
             response_balance = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
-        except  Exception:
+        except  Exception as exc:
+            log_error.error(exc)
             return None
         try:
             self.balance = response_balance['result']['USDT']['available_balance']
-        except Exception:
+        except Exception as exc:
+            log_error.error(exc)
             return None
         now = datetime.datetime.utcnow()
         unixtime = calendar.timegm(now.utctimetuple())
@@ -203,7 +213,8 @@ class BotTrader(BotBybit):
                     limit_price = last_price - 2
                 else:
                     limit_price = last_price + 2
-            except Exception:
+            except Exception as exc:
+                log_error.error(exc)
                 time.sleep(0.1)
         return limit_price
 
@@ -237,7 +248,8 @@ class BotTrader(BotBybit):
         """
         try:
             self.calculate_qty(percent=percent)
-        except Exception:
+        except Exception as exc:
+            log_error.error(exc)
             self.qty_market = 0
         try:
             method = "POST"
@@ -264,7 +276,7 @@ class BotTrader(BotBybit):
                                        qty=result['qty'])
             self._log_information(**information_log)
         except Exception as exc:
-            print(response)
+            log_error.error(exc)
 
     def round_limit_orders(self, qty: float):
         """
@@ -321,14 +333,16 @@ class BotTrader(BotBybit):
             if reduce_only is False:
                 try:
                     qty_limit = self.calculate_qty(percent_limit)
-                except Exception:
+                except Exception as exc:
+                    log_error.error(exc)
                     qty_limit = 0
             else:
                 try:
                     qty_market = self.get_market_qty(direction, reduce_only)
                     qty_limit = float(qty_market * percent_limit / 100)
                     qty_limit = self.round_limit_orders(qty_limit)
-                except Exception:
+                except Exception as exc:
+                    log_error.error(exc)
                     qty_limit = 0
             method = "POST"
             url = "https://api-testnet.bybit.com/private/linear/order/create"
@@ -356,7 +370,7 @@ class BotTrader(BotBybit):
                 return result['qty']
             self._log_information(**information_log)
         except Exception as exc:
-            print(response)
+            log_error.error(exc)
 
     def del_limit_order(self, direction: str, reduce_only: bool):
         """
@@ -379,7 +393,7 @@ class BotTrader(BotBybit):
 
                 resp = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
         except Exception as exc:
-            print(response)
+            log_error.error(exc)
 
     def get_limit_orders_by_del(self, direction: str, reduce_only: bool):
         """
@@ -395,7 +409,8 @@ class BotTrader(BotBybit):
         try:
             self.list_order_limit_by_del = [dict_info['order_id'] for dict_info in response['result'] if
                                      dict_info['side'] == direction and dict_info['reduce_only'] == reduce_only]
-        except Exception:
+        except Exception as exc:
+            log_error.error(exc)
             return None
 
     def put_stop_loss(self, stop_loss: int, side: str):
@@ -414,7 +429,7 @@ class BotTrader(BotBybit):
                     "stop_loss": stop_loss, "timestamp": self.get_timestamp(self.proxy)}
             self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
         except Exception as exc:
-            print(response)
+            log_error.error(exc)
 
     def get_market_qty(self, direction: str, reduce_only: bool):
         """
@@ -449,9 +464,9 @@ class BotTrader(BotBybit):
                     return float(response['result'][0]['entry_price'])
                 else:
                     return float(response['result'][1]['entry_price'])
-            except Exception as exp:
+            except Exception as exc:
                 time.sleep(0.1)
-                print(response)
+                log_error.error(exc)
 
     def market_all(self, side: str):
         """
@@ -482,7 +497,7 @@ class BotTrader(BotBybit):
                         "reduce_only": True, "close_on_trigger": False, 'order_link_id': order_id_link}
                 self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
         except Exception as exc:
-            print(response)
+            log_error.error(exc)
 
     def usdt_to_btc(self, usdt: float, currency: float):
         """
@@ -537,7 +552,8 @@ class BotTrader(BotBybit):
                                      dict_info['side'] == side and dict_info['reduce_only'] == False]
             count_limit_orders = len(list_order_limit)
             return count_limit_orders
-        except Exception:
+        except Exception as exc:
+            log_error.error(exc)
             return None
 
 class botAnalyst(BotBybit):
@@ -622,7 +638,7 @@ class FlatBotTrader(BotTrader):
 
 
     def work_short(self):
-
+        log_info.info("bot started working in short!!!")
         while True:
             self.stop_price_short = 0
             try:
@@ -642,8 +658,10 @@ class FlatBotTrader(BotTrader):
                         market_qty = self.get_market_qty(direction='short', reduce_only = False)
                         time.sleep(0.3)
                     except Exception as exc:
+                        log_error.error(exc)
                         time.sleep(1)
                 else:
+                    log_info.info("bot entered the trade in short!!!")
                     entry_price = floor(self.get_market_entry_price('short'))
                     self.post_limit_order(percent_limit=100, limit_price=entry_price - 50,
                                          direction='long',
@@ -657,6 +675,7 @@ class FlatBotTrader(BotTrader):
                     self.put_stop_loss(stop_loss=stop_price_short, side='Sell')
                     market_qty = self.get_market_qty(direction='Sell', reduce_only = False)
                     qty_limit_orders_start = self.get_qty_limits_order('Sell')
+                    log_info.info("bot arranged extras and stop losses in short!!!")
                     while market_qty != 0:
                         try:
                             time.sleep(0.5)
@@ -670,21 +689,25 @@ class FlatBotTrader(BotTrader):
                                                          limit_price=entry_price - 50,
                                                          direction='long',
                                                          reduce_only=True)
+                                    log_info.info("bot collected an additional short!!!")
                             time.sleep(1)
                             market_qty = self.get_market_qty(direction='short', reduce_only = False)
                         except Exception as exc:
-                            print(response)
+                            log_error.error(exc)
                             time.sleep(1)
                     time.sleep(1)
                     self.del_limit_order('Sell', reduce_only=False)
                     price_now = self.find_price()
                     if price_now >= self.stop_price_short - 10:
+                        log_info.info("bot caught stop loss in short!!!")
                         return
+                log_info.info("bot came out of short!!!")
                 time.sleep(1)
             except Exception as exc:
-                print(response)
+                log_error.error(exc)
 
     def work_long(self):
+        log_info.info("bot started working in long!!!")
         self.stop_price_long = 0
         while True:
             try:
@@ -708,9 +731,10 @@ class FlatBotTrader(BotTrader):
                         time.sleep(0.3)
                         market_qty = self.get_market_qty(direction='long', reduce_only = False)
                     except Exception as exc:
-                        print(response)
+                        log_error.error(exc)
                         time.sleep(1)
                 else:
+                    log_info.info("bot entered the trade in long!!!")
                     entry_price = floor(self.get_market_entry_price('long'))
                     self.post_limit_order(percent_limit=100, limit_price=entry_price + 50,
                                          direction='short',
@@ -723,6 +747,7 @@ class FlatBotTrader(BotTrader):
                     self.put_stop_loss(stop_loss=self.stop_price_long, side='Buy')
                     market_qty = self.get_market_qty(direction='long', reduce_only = False)
                     qty_limit_orders_start = self.get_qty_limits_order('Buy')
+                    log_info.info("bot arranged extras and stop losses in long!!!")
                     while market_qty != 0:
                         try:
                             time.sleep(0.5)
@@ -736,17 +761,20 @@ class FlatBotTrader(BotTrader):
                                                          limit_price=entry_price + 50,
                                                          direction='short',
                                                          reduce_only=True)
+                                    log_info.info("bot collected an additional long!!!")
                             time.sleep(1)
                             market_qty = self.get_market_qty(direction='long', reduce_only = False)
                         except Exception as exc:
-                            print(response)
+                            log_error.error(exc)
                             time.sleep(1)
                     time.sleep(1)
                     self.del_limit_order('Buy', reduce_only=False)
                     price_now = self.find_price()
                     if price_now <= self.stop_price_long + 10:
+                        log_info.info("bot caught stop loss in long!!!")
                         return
+                log_info.info("bot came out of long!!!")
                 time.sleep(1)
             except Exception as exc:
-                print(response)
+                log_error.error(exc)
                 time.sleep(1)
