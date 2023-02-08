@@ -1,4 +1,4 @@
 env
 .env
-db/config.py
-bots/config.py
+config.py
+bots.log

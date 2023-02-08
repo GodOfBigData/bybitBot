@@ -9,12 +9,11 @@ import urllib3
 from json import loads, dumps
 from bots.settings import *
 import requests
-from bots.config import *
 from math import floor
 import pandas as pd
 from time import sleep
-from pprint import pprint
 import time
+import numpy as np
 
 log_debug = logging.getLogger('bots_debug')
 log_info = logging.getLogger('bots_info')
@@ -372,7 +371,7 @@ class BotTrader(BotBybit):
         except Exception as exc:
             log_error.error(exc)
 
-    def del_limit_order(self, direction: str, reduce_only: bool):
+    def del_limit_order(self, direction: str, reduce_only: bool, list_orders=None):
         """
         Function del limit orders
         :param direction: long or short
@@ -381,19 +380,39 @@ class BotTrader(BotBybit):
         :type direction: bool
         :return: None
         """
-        self.get_limit_orders_by_del(direction, reduce_only)
-        try:
-            method = "POST"
-            url = "https://api-testnet.bybit.com/private/linear/order/cancel"
-            if self.list_order_limit_by_del is None:
-                return
-            for order_id in self.list_order_limit_by_del:
+        method = "POST"
+        url = "https://api-testnet.bybit.com/private/linear/order/cancel"
+        if list_orders is not None:
+            for order_id in list_orders:
                 data = {"api_key": self.api_key, "symbol": self.symbol,
                         "order_id": order_id, "timestamp": self.get_timestamp(self.proxy)}
-
                 resp = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
+        else:
+            self.get_limit_orders_by_del(direction, reduce_only)
+            try:
+                if self.list_order_limit_by_del is None:
+                    return
+                for order_id in self.list_order_limit_by_del:
+                    data = {"api_key": self.api_key, "symbol": self.symbol,
+                            "order_id": order_id, "timestamp": self.get_timestamp(self.proxy)}
+
+                    resp = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
+            except Exception as exc:
+                log_error.error(exc)
+
+    def get_info_open_limit_orders(self, direction: str, reduce_only: bool):
+        method = 'GET'
+        url = 'https://api-testnet.bybit.com/private/linear/order/search'
+        data = {"api_key": self.api_key, "symbol": self.symbol, "timestamp": self.get_timestamp(self.proxy)}
+        response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
+        try:
+            list_order_limit = [(dict_info['order_id'], dict_info['price'])  for dict_info in response['result'] if
+                                     dict_info['side'] == direction and dict_info['reduce_only'] == reduce_only]
+            return list_order_limit
         except Exception as exc:
             log_error.error(exc)
+            return None
+
 
     def get_limit_orders_by_del(self, direction: str, reduce_only: bool):
         """
@@ -555,67 +574,6 @@ class BotTrader(BotBybit):
         except Exception as exc:
             log_error.error(exc)
             return None
-
-class botAnalyst(BotBybit):
-
-    def __init__(self, api_key, api_secret, symbol, interval, proxy):
-        super().__init__(api_key, api_secret)
-        self.symbol = symbol
-        self.interval = interval
-        self.dataFrame = None
-        self.listValueMa = list()
-        self.listValueEma = list()
-        self.proxy = proxy
-        self.currentValue = 0
-
-    def getData(self):
-        """
-        Take max count candles = 200
-        interval per minutes
-        """
-        timestamp = floor((self.get_timestamp(self.proxy) - self.interval * 60000 * 200) / 1000)
-        url = f"https://api-testnet.bybit.com/public/linear/kline?symbol={self.symbol}&interval={self.interval}&limit=200&from={timestamp}"
-        response = requests.get(url=url)
-        data_json = loads(response.text)
-        self.dataFrame = pd.DataFrame.from_dict(data_json["result"])
-        self.currentValue = self.dataFrame["close"].iloc[-1]
-
-    def calcMa(self):
-        self.listValueMa = list(self.dataFrame["close"].rolling(window=9).mean())
-
-
-    def calcEMA(self):
-        self.listValueEma = list(self.dataFrame["close"].ewm(span=5, adjust=False).mean())
-
-    def getCurrentMaEma(self):
-        self.runCalcMetrics()
-        return self.listValueMa[-1], self.listValueEma[-1]
-
-
-    def runCalcMetrics(self):
-        self.getData()
-        self.calcMa()
-        self.calcEMA()
-
-class analystOnhcainMetrics:
-
-    def __init__(self, key_coinMarket):
-        self.globalMetrics = dict()
-        self.headers = {
-            'Accepts': 'application/json',
-            'X-CMC_PRO_API_KEY': key_coinMarket,
-        }
-        self.url = "https://pro-api.coinmarketcap.com/v1/global-metrics/quotes/latest"
-
-    def getGlobalMetrics(self):
-        response = loads(requests.get(self.url, headers=self.headers).text)
-        self.globalMetrics = response["data"]
-        return self.globalMetrics
-
-    def getInformationEth(self):
-        response = loads(requests.get(self.url, headers=self.headers).text)
-        globalMetrics = response["data"]
-        return globalMetrics["eth_dominance"], globalMetrics["eth_dominance_yesterday"], globalMetrics["last_updated"]
 
 class FlatBotTrader(BotTrader):
 

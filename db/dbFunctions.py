@@ -1,9 +1,9 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
-from db.config import * 
+from config import username, password, host, port_db, dbName, tableNameUsers
 
-engine = create_engine("postgresql://" + username + ":" + password + "@" + host + ":" + port + "/" + dbName)
+engine = create_engine("postgresql://" + username + ":" + password + "@" + host + ":" + port_db + "/" + dbName)
 
 def decorateSessions(function_dataBase):
     def openCloseConnection(*args):

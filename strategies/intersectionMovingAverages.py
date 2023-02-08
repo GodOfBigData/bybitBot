@@ -1,5 +1,5 @@
 from bots.bots import *
-from bots.config import key_coinMarket
+from bots.config import *
 from time import sleep
 import multiprocessing
 
@@ -39,13 +39,11 @@ def checkGlobalMetrics(direction):
 
 
 def runFlatTrading(api_key, api_secret, symbol, proxy):
-    botTrader = FlatBotTrader(api_key, api_secret, symbol, proxy, 60, LIMITS_INFO) # create trader bot
     procLong.start()
     procShort.start()
 
 
 def runIntersectionTrading(api_key, api_secret, symbol, proxy, direction):
-    botTrader = FlatBotTrader(api_key, api_secret, symbol, proxy, 60, LIMITS_INFO) # create trader bot
     if direction == LONG:
         procLong.start()
     else:
@@ -58,13 +56,13 @@ def stopTrading():
 
 
 def runIntersectionStrategy(api_key, api_secret, proxy, symbol, interval):
-    procLong = multiprocessing.Process(target=botTrader.work_long)
-    procShort = multiprocessing.Process(target=botTrader.work_short)
+    botTrader = FlatBotTrader(api_key, api_secret, symbol, proxy, 60, LIMITS_INFO) # create trader bot=
+    procLong = multiprocessing.Process(target=FlatBotTrader.work_long)
+    procShort = multiprocessing.Process(target=FlatBotTrader.work_short)
     bot_analyst = botAnalyst(api_key, api_secret, symbol, interval, proxy) # create market analyst bot 
     ma, ema = bot_analyst.getCurrentMaEma() # take current values
     direction = None
     solution_trade = False
-    flat_trading_is_runing = False
     while True:
         direction = check_intersection(bot_analyst, ma, ema, 40)
         if direction == LONG:
@@ -76,21 +74,4 @@ def runIntersectionStrategy(api_key, api_secret, proxy, symbol, interval):
             runIntersectionTrading(api_key, api_secret, symbol, proxy, direction)
             solution_trade = False
             direction = None
-            flat_trading_is_runing = False
         sleep(1)
-        if flat_trading_is_runing is False:
-            flat_trading_is_runing = True
-            """
-            run thread trading
-            """
-            stopTrading()
-            runFlatTrading(api_key, api_secret, symbol, proxy)
-    
-
-
-    # sleep(30)
-
-# eth_dominance': 17.334679350939,
-#  'eth_dominance_24h_percentage_change': 0.176144010939,
-#  'eth_dominance_yesterday': 17.15853534,
-#  'last_updated'
