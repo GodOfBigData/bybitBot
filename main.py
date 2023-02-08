@@ -1,5 +1,5 @@
 from  strategies.levelsSrategy import runStretagy
-from config import api_key, api_secret, proxy, currency, interval
+from configs.config import api_key, api_secret, proxy, currency, interval
 
 
 if __name__ == "__main__":

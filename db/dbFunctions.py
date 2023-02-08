@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
-from config import username, password, host, port_db, dbName, tableNameUsers
+from configs.config import username, password, host, port_db, dbName, tableNameUsers
 
 engine = create_engine("postgresql://" + username + ":" + password + "@" + host + ":" + port_db + "/" + dbName)
 

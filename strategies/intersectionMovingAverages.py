@@ -1,5 +1,5 @@
 from bots.bots import *
-from bots.config import *
+from configs.config import *
 from time import sleep
 import multiprocessing
 

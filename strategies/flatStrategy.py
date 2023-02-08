@@ -1,5 +1,5 @@
 from bots.bots import *
-from bots.config import key_coinMarket
+from configs.config import key_coinMarket
 import multiprocessing
 
 
