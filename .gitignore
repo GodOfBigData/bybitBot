@@ -2,3 +2,5 @@ env
 .env
 configs
 logs
+**/__pycache__
+
