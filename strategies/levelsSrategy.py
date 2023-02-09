@@ -1,5 +1,5 @@
 from bots.bots import *
-from configs.config import host_redis, port_redis
+from configs.config import host_redis, port_redis, TAKE_PROFIT, STOP_LOSS, MAX_COUNT_LIMIT_ORDERS
 import redis
 from json import loads
 from math import floor
@@ -7,26 +7,24 @@ from multiprocessing import Process
 import logging
 
 REDIS_CON = redis.Redis(host=host_redis, port=port_redis, db=0)
-TAKE_PROFIT = 50
-STOP_LOSS = 100
 
 log_debug = logging.getLogger('bots_debug')
 log_info = logging.getLogger('bots_info')
 log_error = logging.getLogger('bots_error')
 
-file_handler_debug = logging.FileHandler(filename='logs/bots.log')
+file_handler_debug = logging.FileHandler(filename='logs/strategy_levels.log')
 file_handler_debug.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%d-%m-%Y %H:%M'))
 file_handler_debug.setLevel(logging.DEBUG)
 log_debug.addHandler(file_handler_debug)
 log_debug.setLevel(logging.DEBUG)
 
-file_handler_info = logging.FileHandler(filename='logs/bots.log')
+file_handler_info = logging.FileHandler(filename='logs/strategy_levels.log')
 file_handler_info.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%d-%m-%Y %H:%M'))
 file_handler_info.setLevel(logging.INFO)
 log_info.addHandler(file_handler_info)
 log_info.setLevel(logging.INFO)
 
-file_handler_error = logging.FileHandler(filename='logs/bots.log')
+file_handler_error = logging.FileHandler(filename='logs/strategy_levels.log')
 file_handler_error.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%d-%m-%Y %H:%M'))
 file_handler_error.setLevel(logging.ERROR)
 log_error.addHandler(file_handler_error)
@@ -51,17 +49,28 @@ def define_level(bot_trader, direction):
     del_limit_orders_id = []
     if direction == "Buy":
         levels = get_support_level()
-        open_limit_orders = bot_trader.get_info_open_limit_orders("Buy", False)
     else:
         levels = get_resistance_level()
-        open_limit_orders = bot_trader.get_info_open_limit_orders("Sell", False)
+    open_limit_orders = bot_trader.get_info_open_limit_orders(direction, False)
     prices_current_limit_orders = [info[1] for info in open_limit_orders]
+    count_open_limit_orders = len(open_limit_orders)
     for level in levels:
         if level not in prices_current_limit_orders:
             new_limit_orders_price.append(level)
     for iD, price in open_limit_orders:
         if price not in levels:
             del_limit_orders_id.append(iD)
+    if count_open_limit_orders >= 3:
+        new_limit_orders_price = []
+    elif count_open_limit_orders == 0 and len(new_limit_orders_price) < 2:
+        new_limit_orders_price = []
+    if direction == "Buy":
+        new_limit_orders_price.sort(reverse=True)
+    else:
+        new_limit_orders_price.sort(reverse=False)
+    needed_count_orders = MAX_COUNT_LIMIT_ORDERS - count_open_limit_orders
+    if len(new_limit_orders_price) >= needed_count_orders:
+        new_limit_orders_price = new_limit_orders_price[0:needed_count_orders]
     return new_limit_orders_price, del_limit_orders_id 
 
 
@@ -87,7 +96,8 @@ def trade_long(bot_trader):
             bot_trader.post_limit_order(percent_limit = 100, limit_price = take_profit_value,
                                     direction = 'short',
                                     reduce_only = True)
-            bot_trader.stop_price_long = new_limit_orders_price[-1] - STOP_LOSS
+            last_limit_order = bot_trader.get_price_last_draw_limit_order("Buy", False)
+            bot_trader.stop_price_long = last_limit_order - STOP_LOSS
             bot_trader.put_stop_loss(stop_loss = bot_trader.stop_price_long, side = 'Buy')
             market_qty = bot_trader.get_market_qty(direction='long', reduce_only = False)
             qty_limit_orders_start = bot_trader.get_qty_limits_order('Buy')
@@ -138,7 +148,8 @@ def trade_short(bot_trader):
             bot_trader.post_limit_order(percent_limit = 100, limit_price = take_profit_value,
                                     direction = 'long',
                                     reduce_only = True)
-            bot_trader.stop_price_long = new_limit_orders_price[-1] + STOP_LOSS
+            last_limit_order = bot_trader.get_price_last_draw_limit_order("Sell", False)
+            bot_trader.stop_price_long = last_limit_order + STOP_LOSS
             bot_trader.put_stop_loss(stop_loss = bot_trader.stop_price_long, side = 'Sell')
             market_qty = bot_trader.get_market_qty(direction='short', reduce_only = False)
             qty_limit_orders_start = bot_trader.get_qty_limits_order('Sell')

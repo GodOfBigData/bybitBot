@@ -413,6 +413,14 @@ class BotTrader(BotBybit):
             log_error.error(exc)
             return None
 
+    def get_price_last_draw_limit_order(self, direction: str, reduce_only: bool):
+        list_order_limit = self.get_info_open_limit_orders(direction, reduce_only)
+        list_order_limit = sorted(list_order_limit, key=lambda x:x[1])
+        if direction == "Sell":
+            return list_order_limit[-1][1]
+        else:
+            return list_order_limit[0][1]
+
 
     def get_limit_orders_by_del(self, direction: str, reduce_only: bool):
         """
@@ -446,7 +454,7 @@ class BotTrader(BotBybit):
             url = "https://api-testnet.bybit.com/private/linear/position/trading-stop"
             data = {"api_key": self.api_key, "symbol": self.symbol, 'side': side,
                     "stop_loss": stop_loss, "timestamp": self.get_timestamp(self.proxy)}
-            self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
+            response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
         except Exception as exc:
             log_error.error(exc)
 
