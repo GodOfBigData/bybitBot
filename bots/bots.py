@@ -40,17 +40,20 @@ log_error.setLevel(logging.ERROR)
 
 class BotBybit:
 
-    def __init__(self, api_key: str, api_secret: str):
+    def __init__(self, api_key: str, api_secret: str, mode: str):
         """
         Initializing the parent bot
         :param api_key: api account key
         :type api_key: str
         :param api_secret: api account secret key
         :type api_secret: str
+        :param mode: mode work (testnet or Mainenet)
+        :type mode: str
         :return: None
         """
         self.api_key = api_key
         self.api_secret = api_secret
+        self.mode = mode
 
     def go_command(self, method: str, url: str, secret_key: str, params: dict, proxies: dict):
         """
@@ -126,20 +129,22 @@ class BotBybit:
         Get timestamp function
         :return: time
         """
-        resp = requests.request('GET', url='https://api-testnet.bybit.com/v2/public/time', proxies={'http': proxy})
+        resp = requests.request('GET', url=f'https://{self.mode}.bybit.com/v2/public/time', proxies={'http': proxy})
         server_time = int(float(loads(resp.text)['time_now']) * 1000)
         return server_time
 
 
 class BotTrader(BotBybit):
 
-    def __init__(self, api_key: str, api_secret: str, symbol: str, proxy: str, interval: int):
+    def __init__(self, api_key: str, api_secret: str, mode: str, symbol: str, proxy: str, interval: int):
         """
         Initializing the parent bot
         :param api_key: api account key
         :type api_key: str
         :param api_secret: api account secret key
         :type api_secret: str
+        :param mode: mode work (testnet or Mainenet)
+        :type mode: str
         :param symbol: symbol instrument
         :type symbol: str
         :param proxy: proxy
@@ -148,7 +153,7 @@ class BotTrader(BotBybit):
         :type proxy: int
         :return: None
         """
-        super().__init__(api_key, api_secret)
+        super().__init__(api_key, api_secret, mode)
         self.symbol = symbol
         self.proxy = proxy
         self.qty_market = 0
@@ -178,7 +183,7 @@ class BotTrader(BotBybit):
             -balance in usd
         """
         method = 'GET'
-        url = 'https://api-testnet.bybit.com/v2/private/wallet/balance'
+        url = f'https://{self.mode}.bybit.com/v2/private/wallet/balance'
         data = {"api_key": self.api_key, "symbol": self.symbol, "timestamp": self.get_timestamp(proxy=self.proxy)}
         try:
             response_balance = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
@@ -194,7 +199,7 @@ class BotTrader(BotBybit):
         unixtime = calendar.timegm(now.utctimetuple())
         since = unixtime - self.interval * 60 * 200
         method = 'GET'
-        url = f'https://api-testnet.bybit.com/public/linear/kline?symbol={self.symbol}&interval={self.interval}&from={since}'
+        url = f'https://{self.mode}.bybit.com/public/linear/kline?symbol={self.symbol}&interval={self.interval}&from={since}'
         response_currency = loads(requests.request(method, url, verify=False, proxies={'http': self.proxy}).text)
         currency = response_currency['result'][-1]['close']
         data_dict = {
@@ -252,7 +257,7 @@ class BotTrader(BotBybit):
             self.qty_market = 0
         try:
             method = "POST"
-            url = "https://api-testnet.bybit.com/private/linear/order/create"
+            url = f"https://{self.mode}.bybit.com/private/linear/order/create"
             if direction == 'long':
                 data = {"api_key": self.api_key, "side": "Buy", "symbol": self.symbol,
                         "order_type": "Market", "qty": self.qty_market,
@@ -297,7 +302,7 @@ class BotTrader(BotBybit):
         :return: order_id
         :rtype: str
         """
-        url = 'https://api-testnet.bybit.com/private/linear/trade/execution/list'
+        url = f'https://{self.mode}.bybit.com/private/linear/trade/execution/list'
         method = 'GET'
         data = {"api_key": self.api_key, "symbol": self.symbol,
                 "timestamp": self.get_timestamp(proxy={'http': f'http://{self.proxy}'}),
@@ -313,7 +318,7 @@ class BotTrader(BotBybit):
                     return info['order_id']
 
     def post_limit_order(self, percent_limit: float, limit_price: float, direction: str,
-                         reduce_only: bool):
+                         reduce_only: bool, take_profit=None):
         """
         Function post limit orders
         :param percent_limit: percent fo limit order
@@ -344,12 +349,14 @@ class BotTrader(BotBybit):
                     log_error.error(exc)
                     qty_limit = 0
             method = "POST"
-            url = "https://api-testnet.bybit.com/private/linear/order/create"
+            url = f"https://{self.mode}.bybit.com/private/linear/order/create"
             if direction == 'long':
                 data = {"api_key": self.api_key, "side": "Buy", "symbol": self.symbol,
                         "order_type": "Limit", "qty": qty_limit, 'price': limit_price,
                         "time_in_force": "GoodTillCancel", "timestamp": self.get_timestamp(self.proxy),
                         "reduce_only": reduce_only, "close_on_trigger": False}
+                if take_profit is not None:
+                    data['take_profit'] = take_profit
                 response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
                 result = response['result']
                 information_log = dict(symbol=result['symbol'], side='Buy', order_type=result['order_type'],
@@ -361,6 +368,8 @@ class BotTrader(BotBybit):
                         "order_type": "Limit", "qty": qty_limit, 'price': limit_price,
                         "time_in_force": "GoodTillCancel", "timestamp": self.get_timestamp(self.proxy),
                         "reduce_only": reduce_only, "close_on_trigger": False}
+                if take_profit is not None:
+                    data['take_profit'] = take_profit
                 response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
                 result = response['result']
                 information_log = dict(symbol=result['symbol'], side='Sell', order_type=result['order_type'],
@@ -381,7 +390,7 @@ class BotTrader(BotBybit):
         :return: None
         """
         method = "POST"
-        url = "https://api-testnet.bybit.com/private/linear/order/cancel"
+        url = f"https://{self.mode}.bybit.com/private/linear/order/cancel"
         if list_orders is not None:
             for order_id in list_orders:
                 data = {"api_key": self.api_key, "symbol": self.symbol,
@@ -402,7 +411,7 @@ class BotTrader(BotBybit):
 
     def get_info_open_limit_orders(self, direction: str, reduce_only: bool):
         method = 'GET'
-        url = 'https://api-testnet.bybit.com/private/linear/order/search'
+        url = f'https://{self.mode}.bybit.com/private/linear/order/search'
         data = {"api_key": self.api_key, "symbol": self.symbol, "timestamp": self.get_timestamp(self.proxy)}
         response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
         try:
@@ -430,7 +439,7 @@ class BotTrader(BotBybit):
         :return: None
         """
         method = 'GET'
-        url = 'https://api-testnet.bybit.com/private/linear/order/search'
+        url = f'https://{self.mode}.bybit.com/private/linear/order/search'
         data = {"api_key": self.api_key, "symbol": self.symbol, "timestamp": self.get_timestamp(self.proxy)}
         response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
         try:
@@ -451,7 +460,7 @@ class BotTrader(BotBybit):
         """
         try:
             method = "POST"
-            url = "https://api-testnet.bybit.com/private/linear/position/trading-stop"
+            url = f"https://{self.mode}.bybit.com/private/linear/position/trading-stop"
             data = {"api_key": self.api_key, "symbol": self.symbol, 'side': side,
                     "stop_loss": stop_loss, "timestamp": self.get_timestamp(self.proxy)}
             response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
@@ -467,7 +476,7 @@ class BotTrader(BotBybit):
         :rtype: float
         """
         method = 'GET'
-        url = 'https://api-testnet.bybit.com/private/linear/position/list'
+        url = f'https://{self.mode}.bybit.com/private/linear/position/list'
         data = {"api_key": self.api_key, "symbol": self.symbol, "timestamp": self.get_timestamp(self.proxy)}
         response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
         if direction == 'long' and reduce_only is True: 
@@ -484,7 +493,7 @@ class BotTrader(BotBybit):
         while checking is None:
             try:
                 method = 'GET'
-                url = 'https://api-testnet.bybit.com/private/linear/position/list'
+                url = f'https://{self.mode}.bybit.com/private/linear/position/list'
                 data = {"api_key": self.api_key, "symbol": self.symbol, "timestamp": self.get_timestamp(self.proxy)}
                 response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
                 if direction == 'long':
@@ -504,10 +513,10 @@ class BotTrader(BotBybit):
         """
         try:
             method = 'GET'
-            url = 'https://api-testnet.bybit.com/private/linear/position/list'
+            url = f'https://{self.mode}.bybit.com/private/linear/position/list'
             data = {"api_key": self.api_key, "symbol": self.symbol, "timestamp": self.get_timestamp(self.proxy)}
             response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
-            url = "https://api-testnet.bybit.com/private/linear/order/create"
+            url = f"https://{self.mode}.bybit.com/private/linear/order/create"
             method = 'POST'
             if side == 'Buy':
                 order_id_link = self.get_order_id('long')
@@ -571,7 +580,7 @@ class BotTrader(BotBybit):
         :return: None
         """
         method = 'GET'
-        url = 'https://api-testnet.bybit.com/private/linear/order/search'
+        url = f'https://{self.mode}.bybit.com/private/linear/order/search'
         data = {"api_key": self.api_key, "symbol": self.symbol, "timestamp": self.get_timestamp(self.proxy)}
         response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
         try:
@@ -585,13 +594,15 @@ class BotTrader(BotBybit):
 
 class FlatBotTrader(BotTrader):
 
-    def __init__(self, api_key: str, api_secret: str, symbol: str, proxy: str, interval: int, limits_threshold: list):
+    def __init__(self, api_key: str, api_secret: str, mode:str, symbol: str, proxy: str, interval: int, limits_threshold: list):
         """
         Initializing the parent bot
         :param api_key: api account key
         :type api_key: str
         :param api_secret: api account secret key
         :type api_secret: str
+        :param mode: mode work (testnet or Mainenet)
+        :type mode: str
         :param symbol: symbol instrument
         :type symbol: str
         :param proxy: proxy

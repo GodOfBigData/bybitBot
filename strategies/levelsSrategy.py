@@ -1,5 +1,5 @@
 from bots.bots import *
-from configs.config import host_redis, port_redis, TAKE_PROFIT, STOP_LOSS, MAX_COUNT_LIMIT_ORDERS
+from configs.config import host_redis, port_redis, TAKE_PROFIT, STOP_LOSS, MAX_COUNT_LIMIT_ORDERS, DANGEROUS_AREA, SUPERIORITY, MODE
 import redis
 from json import loads
 from math import floor
@@ -72,6 +72,35 @@ def define_level(bot_trader, direction):
     if len(new_limit_orders_price) >= needed_count_orders:
         new_limit_orders_price = new_limit_orders_price[0:needed_count_orders]
     return new_limit_orders_price, del_limit_orders_id 
+
+def watch_out_danger_long(bot_trader):
+    while True:
+        open_limit_orders = bot_trader.get_info_open_limit_orders('Buy', False)
+        if len(open_limit_orders) > 0:
+            open_limit_orders = sorted(open_limit_orders, key=lambda x:x[1])
+            first_limit_order = open_limit_orders[-1][1]
+            last_value = float(REDIS_CON.get("last_value"))
+            superiority_sell = float(REDIS_CON.get("superiority_sell"))
+            dif_price = last_value - first_limit_order
+            if dif_price <= 70 and superiority_sell > SUPERIORITY:
+                bot_trader.del_limit_order("Buy", False, [open_limit_orders[-1][0]])
+                log_info.info("bot deleted long open limit order with id = " + open_limit_orders[-1][0])
+
+
+def watch_out_danger_short(bot_trader):
+    while True:
+        open_limit_orders = bot_trader.get_info_open_limit_orders('Sell', False)
+        if len(open_limit_orders) > 0:
+            open_limit_orders = sorted(open_limit_orders, key=lambda x:x[1])
+            first_limit_order = open_limit_orders[0][1]
+            last_value = float(REDIS_CON.get("last_value"))
+            superiority_buy = float(REDIS_CON.get("superiority_buy"))
+            print(f'superiority_buy - {superiority_buy}')
+            dif_price = first_limit_order - last_value
+            print(f'dif price short - {dif_price}')
+            if dif_price <= 70 and superiority_buy > SUPERIORITY:
+                bot_trader.del_limit_order("Sell", False, [open_limit_orders[0][0]])
+                log_info.info("bot deleted short open limit order with id = " + open_limit_orders[0][0])
 
 
 
@@ -180,13 +209,18 @@ def trade_short(bot_trader):
   
 
 def runStretagy(api_key, api_secret, symbol, proxy, interval):
-    bot_trader = BotTrader(api_key, api_secret, symbol, proxy, interval)
+    bot_trader = BotTrader(api_key, api_secret, MODE, symbol, proxy, interval)
 
     process_long = Process(target=trade_long, args=[bot_trader])
     process_short = Process(target=trade_short, args=[bot_trader])
 
+    process_watcher_danger_long = Process(target=watch_out_danger_long, args=[bot_trader])
+    process_watcher_danger_short = Process(target=watch_out_danger_short, args=[bot_trader])
+
     process_long.start()
     process_short.start()
+    process_watcher_danger_long.start()
+    process_watcher_danger_short.start()
 
 
 
