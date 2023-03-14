@@ -415,7 +415,7 @@ class BotTrader(BotBybit):
         data = {"api_key": self.api_key, "symbol": self.symbol, "timestamp": self.get_timestamp(self.proxy)}
         response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
         try:
-            list_order_limit = [(dict_info['order_id'], dict_info['price'])  for dict_info in response['result'] if
+            list_order_limit = [(dict_info['order_id'], dict_info['price'], dict_info['qty'])  for dict_info in response['result'] if
                                      dict_info['side'] == direction and dict_info['reduce_only'] == reduce_only]
             return list_order_limit
         except Exception as exc:

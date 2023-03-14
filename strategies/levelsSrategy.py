@@ -57,7 +57,7 @@ def define_level(bot_trader, direction):
     for level in levels:
         if level not in prices_current_limit_orders:
             new_limit_orders_price.append(level)
-    for iD, price in open_limit_orders:
+    for iD, price, qty in open_limit_orders:
         if price not in levels:
             del_limit_orders_id.append(iD)
     if count_open_limit_orders >= 3:
@@ -82,7 +82,7 @@ def watch_out_danger_long(bot_trader):
             last_value = float(REDIS_CON.get("last_value"))
             superiority_sell = float(REDIS_CON.get("superiority_sell"))
             dif_price = last_value - first_limit_order
-            if dif_price <= 70 and superiority_sell > SUPERIORITY:
+            if dif_price <= DANGEROUS_AREA and superiority_sell > SUPERIORITY:
                 bot_trader.del_limit_order("Buy", False, [open_limit_orders[-1][0]])
                 log_info.info("bot deleted long open limit order with id = " + open_limit_orders[-1][0])
 
@@ -95,10 +95,8 @@ def watch_out_danger_short(bot_trader):
             first_limit_order = open_limit_orders[0][1]
             last_value = float(REDIS_CON.get("last_value"))
             superiority_buy = float(REDIS_CON.get("superiority_buy"))
-            print(f'superiority_buy - {superiority_buy}')
             dif_price = first_limit_order - last_value
-            print(f'dif price short - {dif_price}')
-            if dif_price <= 70 and superiority_buy > SUPERIORITY:
+            if dif_price <= DANGEROUS_AREA and superiority_buy > SUPERIORITY:
                 bot_trader.del_limit_order("Sell", False, [open_limit_orders[0][0]])
                 log_info.info("bot deleted short open limit order with id = " + open_limit_orders[0][0])
 
@@ -148,6 +146,18 @@ def trade_long(bot_trader):
                             log_info.info("bot collected an additional long!!!")
                     time.sleep(1)
                     market_qty = bot_trader.get_market_qty(direction='long', reduce_only = False)
+                    try:
+                        take_qty = bot_trader.get_info_open_limit_orders(direction='Sell', reduce_only = True)[0][2]
+                    except Exception as exc:
+                        take_qty = 0
+                    if take_qty != market_qty:
+                        bot_trader.del_limit_order('Sell', reduce_only = True)
+                        entry_price = floor(bot_trader.get_market_entry_price('long'))
+                        take_profit_value = entry_price + TAKE_PROFIT
+                        bot_trader.post_limit_order(percent_limit = 100,
+                                                limit_price = take_profit_value,
+                                                direction = 'short',
+                                                reduce_only = True)
                 except Exception as exc:
                     log_error.error(exc)
                     time.sleep(1)
@@ -200,6 +210,18 @@ def trade_short(bot_trader):
                             log_info.info("bot collected an additional short!!!")
                     time.sleep(1)
                     market_qty = bot_trader.get_market_qty(direction='short', reduce_only = False)
+                    try:
+                        list_take = bot_trader.get_info_open_limit_orders(direction='Buy', reduce_only = True)[0][2]
+                    except Exception as exc:
+                        take_qty = 0
+                    if take_qty != market_qty:
+                        bot_trader.del_limit_order('Buy', reduce_only = True)
+                        entry_price = floor(bot_trader.get_market_entry_price('short'))
+                        take_profit_value = entry_price - TAKE_PROFIT
+                        bot_trader.post_limit_order(percent_limit = 100,
+                                                limit_price = take_profit_value,
+                                                direction = 'long',
+                                                reduce_only = True)
                 except Exception as exc:
                     log_error.error(exc)
                     time.sleep(1)
@@ -222,5 +244,6 @@ def runStretagy(api_key, api_secret, symbol, proxy, interval):
     process_watcher_danger_long.start()
     process_watcher_danger_short.start()
 
+    
 
 
