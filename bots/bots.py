@@ -479,10 +479,16 @@ class BotTrader(BotBybit):
         url = f'https://{self.mode}.bybit.com/private/linear/position/list'
         data = {"api_key": self.api_key, "symbol": self.symbol, "timestamp": self.get_timestamp(self.proxy)}
         response = self.go_command(method, url, self.api_secret, data, {'http': self.proxy})
-        if direction == 'long' and reduce_only is True: 
-            return float(response['result'][1]['size'])
+        if direction == 'long' and reduce_only is True:
+            try: 
+                return float(response['result'][1]['size'])
+            except Exception:
+                return 0
         elif direction == 'short' and reduce_only is True:
-            return float(response['result'][0]['size'])
+            try:
+                return float(response['result'][0]['size'])
+            except Exception:
+                return 0
         elif direction == 'long' and reduce_only is False:
             return float(response['result'][0]['size'])
         else:

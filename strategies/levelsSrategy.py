@@ -85,6 +85,7 @@ def watch_out_danger_long(bot_trader):
             if dif_price <= DANGEROUS_AREA and superiority_sell > SUPERIORITY:
                 bot_trader.del_limit_order("Buy", False, [open_limit_orders[-1][0]])
                 log_info.info("bot deleted long open limit order with id = " + open_limit_orders[-1][0])
+        time.sleep(0.5)
 
 
 def watch_out_danger_short(bot_trader):
@@ -99,6 +100,7 @@ def watch_out_danger_short(bot_trader):
             if dif_price <= DANGEROUS_AREA and superiority_buy > SUPERIORITY:
                 bot_trader.del_limit_order("Sell", False, [open_limit_orders[0][0]])
                 log_info.info("bot deleted short open limit order with id = " + open_limit_orders[0][0])
+        time.sleep(0.5)
 
 
 
@@ -116,6 +118,7 @@ def trade_long(bot_trader):
             if len(del_limit_orders_id) > 0:
                 bot_trader.del_limit_order("Buy", False, del_limit_orders_id)
             market_qty = bot_trader.get_market_qty(direction = 'long', reduce_only = False)
+            time.sleep(0.5)
         else:
             log_info.info("bot entered the trade in long!!!")
             entry_price = floor(bot_trader.get_market_entry_price('long'))
@@ -180,6 +183,7 @@ def trade_short(bot_trader):
             if len(del_limit_orders_id) > 0:
                 bot_trader.del_limit_order("Sell", False, del_limit_orders_id)
             market_qty = bot_trader.get_market_qty(direction = 'short', reduce_only = False)
+            time.sleep(0.5)
         else:
             log_info.info("bot entered the trade in short!!!")
             entry_price = floor(bot_trader.get_market_entry_price('short'))
